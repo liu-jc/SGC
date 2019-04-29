@@ -18,6 +18,8 @@ def preprocess_citation(adj, features, normalization="FirstOrderGCN", gamma=1):
     adj_normalizer = fetch_normalization(normalization)
     if 'Aug' in normalization:
         adj = adj_normalizer(adj, gamma=gamma)
+    elif 'Restart' in normalization:
+        adj = adj_normalizer(adj, gamma=gamma)
     else:
         adj = adj_normalizer(adj)
     features = row_normalize(features)
@@ -102,6 +104,32 @@ def sgc_precompute(features, adj, degree, concat):
         features = torch.cat(mem, dim=1)
     precompute_time = perf_counter()-t
     return features, precompute_time
+
+def rw_restart_precompute(features, adj, degree, alpha):
+    t = perf_counter()
+    adj = (1-alpha) * adj
+    adj_power = sp.eye(adj.shape[0]).tocoo()
+    adj_power = sparse_mx_to_torch_sparse_tensor(adj_power)
+    # adj_sum = sp.coo_matrix(adj.shape)
+    # adj_sum = sparse_mx_to_torch_sparse_tensor(adj_sum)
+    adj_sum = torch.zeros(adj.shape, dtype=torch.float32)
+    # print('adj_sum: ', type(adj_sum), 'shape: ', adj_sum.shape)
+    # print('adj_power: ', type(adj_power), 'shape: ', adj_power.shape)
+    # print('adj: ', type(adj), 'shape: ', adj.shape)
+    adj = adj.to_dense()
+    adj_power = adj_power.to_dense()
+    for i in range(degree):
+        adj_sum = torch.add(adj_sum, alpha*adj_power)
+        # print('adj: ', adj)
+        # print('adj_power: ', adj_power)
+        # adj_power = torch.spmm(adj, adj_power)
+        adj_power = torch.matmul(adj, adj_power)
+    # features = torch.spmm(torch.add(adj_sum,adj_power),features)
+    features = torch.matmul(torch.add(adj_sum,adj_power),features)
+    precompute_time = perf_counter()-t
+    return features, precompute_time
+
+
 
 def set_seed(seed, cuda):
     np.random.seed(seed)

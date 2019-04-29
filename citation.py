@@ -4,7 +4,7 @@ import numpy as np
 import torch
 import torch.nn.functional as F
 import torch.optim as optim
-from utils import load_citation, sgc_precompute, set_seed
+from utils import load_citation, sgc_precompute, set_seed, rw_restart_precompute
 from models import get_model
 from metrics import accuracy
 import pickle as pkl
@@ -29,8 +29,13 @@ set_seed(args.seed, args.cuda)
 
 adj, features, labels, idx_train, idx_val, idx_test = load_citation(args.dataset, args.normalization, args.cuda, gamma=args.gamma)
 
-if args.model == "SGC": features, precompute_time = sgc_precompute(features, adj, args.degree, args.concat)
-print("{:.4f}s".format(precompute_time))
+if args.model == "SGC":
+    if args.normalization != 'RWalkRestart':
+        features, precompute_time = sgc_precompute(features, adj, args.degree, args.concat)
+    else:
+        alpha = 0.1
+        features, precompute_time = rw_restart_precompute(features, adj, args.degree, alpha)
+    print("{:.4f}s".format(precompute_time))
 
 model = get_model(args.model, features.size(1), labels.max().item()+1, args.hidden, args.dropout, args.cuda)
 
@@ -46,7 +51,10 @@ def train_regression(model,
     for epoch in range(epochs):
         model.train()
         optimizer.zero_grad()
-        output = model(train_features)
+        if args.model == 'SGC':
+            output = model(train_features)
+        # if args.model == 'GCN':
+        #     output = model(adj, train_features)
         loss_train = F.cross_entropy(output, train_labels)
         loss_train.backward()
         optimizer.step()
@@ -64,6 +72,11 @@ def test_regression(model, test_features, test_labels):
     return accuracy(model(test_features), test_labels)
 
 if args.model == "SGC":
+    model, acc_val, train_time = train_regression(model, features[idx_train], labels[idx_train], features[idx_val], labels[idx_val],
+                                                  args.epochs, args.weight_decay, args.lr, args.dropout)
+    acc_test = test_regression(model, features[idx_test], labels[idx_test])
+
+if args.model == "GCN":
     model, acc_val, train_time = train_regression(model, features[idx_train], labels[idx_train], features[idx_val], labels[idx_val],
                                                   args.epochs, args.weight_decay, args.lr, args.dropout)
     acc_test = test_regression(model, features[idx_test], labels[idx_test])

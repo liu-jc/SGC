@@ -27,7 +27,7 @@ def get_citation_args():
     parser.add_argument('--normalization', type=str, default='AugNormAdj',
                        choices=['NormLap', 'Lap', 'RWalkLap', 'FirstOrderGCN',
                                 'AugNormAdj', 'NormAdj', 'RWalk', 'AugRWalk',
-                                'NoNorm', 'LowPass'],
+                                'NoNorm', 'LowPass', 'RWalkRestart'],
                        help='Normalization method for the adjacency matrix.')
     parser.add_argument('--degree', type=int, default=2,
                         help='degree of the approximation.')
