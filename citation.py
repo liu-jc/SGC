@@ -4,7 +4,7 @@ import numpy as np
 import torch
 import torch.nn.functional as F
 import torch.optim as optim
-from utils import load_citation, sgc_precompute, set_seed, rw_restart_precompute
+from utils import load_citation, sgc_precompute, set_seed, rw_restart_precompute, test_split
 from models import get_model
 from metrics import accuracy
 import pickle as pkl
@@ -33,7 +33,7 @@ if args.model == "SGC":
     if args.normalization != 'RWalkRestart':
         features, precompute_time = sgc_precompute(features, adj, args.degree, args.concat)
     else:
-        alpha = 0.1
+        alpha = 0.2
         features, precompute_time = rw_restart_precompute(features, adj, args.degree, alpha)
     print("{:.4f}s".format(precompute_time))
 
@@ -72,9 +72,30 @@ def test_regression(model, test_features, test_labels):
     return accuracy(model(test_features), test_labels)
 
 if args.model == "SGC":
-    model, acc_val, train_time = train_regression(model, features[idx_train], labels[idx_train], features[idx_val], labels[idx_val],
-                                                  args.epochs, args.weight_decay, args.lr, args.dropout)
-    acc_test = test_regression(model, features[idx_test], labels[idx_test])
+    k_fold = True
+    acc_test_list = []
+    acc_val_list = []
+    train_time_list = []
+    if k_fold == True:
+        idx_splits = test_split(args.dataset)
+        idx_splits.append({'train_idx':idx_train,'val_idx':idx_val, 'test_idx':idx_test})
+        for idxs in idx_splits:
+            idx_train, idx_val, idx_test = idxs['train_idx'], idxs['val_idx'], idxs['test_idx']
+            model = get_model(args.model, features.size(1), labels.max().item() + 1, args.hidden, args.dropout,
+                              args.cuda)
+            model, cur_acc_val, cur_train_time = train_regression(model, features[idx_train], labels[idx_train], features[idx_val], labels[idx_val],
+                                                          args.epochs, args.weight_decay, args.lr, args.dropout)
+            cur_acc_test = test_regression(model, features[idx_test], labels[idx_test])
+            acc_test_list.append(cur_acc_test)
+            acc_val_list.append(cur_acc_val)
+            train_time_list.append(cur_train_time)
+        acc_test = np.average(acc_test_list)
+        acc_val = np.average(acc_val_list)
+        train_time = np.average(train_time_list)
+    else:
+        model, acc_val, train_time = train_regression(model, features[idx_train], labels[idx_train], features[idx_val], labels[idx_val],
+                                                      args.epochs, args.weight_decay, args.lr, args.dropout)
+        acc_test = test_regression(model, features[idx_test], labels[idx_test])
 
 if args.model == "GCN":
     model, acc_val, train_time = train_regression(model, features[idx_train], labels[idx_train], features[idx_val], labels[idx_val],

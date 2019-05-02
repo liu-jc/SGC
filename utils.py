@@ -6,6 +6,7 @@ import pickle as pkl
 import networkx as nx
 from normalization import fetch_normalization, row_normalize
 from time import perf_counter
+from sklearn.model_selection import StratifiedShuffleSplit
 
 def parse_index_file(filename):
     """Parse index file."""
@@ -108,24 +109,24 @@ def sgc_precompute(features, adj, degree, concat):
 def rw_restart_precompute(features, adj, degree, alpha):
     t = perf_counter()
     adj = (1-alpha) * adj
-    adj_power = sp.eye(adj.shape[0]).tocoo()
-    adj_power = sparse_mx_to_torch_sparse_tensor(adj_power)
+    # adj_power = sp.eye(adj.shape[0]).tocoo()
+    # adj_power = sparse_mx_to_torch_sparse_tensor(adj_power)
+    adj_power = np.eye(adj.shape[0])
+    adj_power = torch.tensor(adj_power, dtype=torch.float32)
     # adj_sum = sp.coo_matrix(adj.shape)
     # adj_sum = sparse_mx_to_torch_sparse_tensor(adj_sum)
     adj_sum = torch.zeros(adj.shape, dtype=torch.float32)
     # print('adj_sum: ', type(adj_sum), 'shape: ', adj_sum.shape)
     # print('adj_power: ', type(adj_power), 'shape: ', adj_power.shape)
     # print('adj: ', type(adj), 'shape: ', adj.shape)
-    adj = adj.to_dense()
-    adj_power = adj_power.to_dense()
+    # adj = adj.to_dense()
+    # adj_power = adj_power.to_dense()
     for i in range(degree):
         adj_sum = torch.add(adj_sum, alpha*adj_power)
-        # print('adj: ', adj)
-        # print('adj_power: ', adj_power)
-        # adj_power = torch.spmm(adj, adj_power)
-        adj_power = torch.matmul(adj, adj_power)
-    # features = torch.spmm(torch.add(adj_sum,adj_power),features)
-    features = torch.matmul(torch.add(adj_sum,adj_power),features)
+        adj_power = torch.spmm(adj, adj_power) # bug, cannot handle sparse matrix
+        # adj_power = torch.matmul(adj, adj_power)
+    features = torch.spmm(torch.add(adj_sum,adj_power),features)
+    # features = torch.matmul(torch.add(adj_sum,adj_power),features)
     precompute_time = perf_counter()-t
     return features, precompute_time
 
@@ -170,3 +171,45 @@ def load_reddit_data(data_path="data/", normalization="AugNormAdj", cuda=True, g
         features = features.cuda()
         labels = labels.cuda()
     return adj, train_adj, features, labels, train_index, val_index, test_index
+
+def exclude_idx(idx, idx_exclude_list):
+    idx_exclude = np.concatenate(idx_exclude_list)
+    return np.array([i for i in idx if i not in idx_exclude])
+
+def train_val_split(visable_idx, visable_y, ntrain_per_class=20, nstopping = 500, seed=1):
+    rnd_state = np.random.RandomState(seed)
+    labels = np.argmax(visable_y, axis=1)
+    train_idx_split = []
+    for i in range(max(labels) + 1):
+        train_idx_split.append(rnd_state.choice(
+                visable_idx[labels == i], ntrain_per_class, replace=False))
+    train_idx = np.concatenate(train_idx_split)
+    stopping_idx = rnd_state.choice(
+            exclude_idx(visable_idx, [train_idx]),
+            nstopping, replace=False)
+    return train_idx, stopping_idx
+
+
+def test_split(dataset_str="cora", seed = 1):
+    names = ['x', 'y', 'tx', 'ty', 'allx', 'ally', 'graph']
+    objects = []
+    for i in range(len(names)):
+        with open("data/ind.{}.{}".format(dataset_str.lower(), names[i]), 'rb') as f:
+            if sys.version_info > (3, 0):
+                objects.append(pkl.load(f, encoding='latin1'))
+            else:
+                objects.append(pkl.load(f))
+
+    x, y, tx, ty, allx, ally, graph = tuple(objects)
+    total_y = np.vstack((ally, ty))
+    total_x = sp.vstack((allx, tx))
+    labels = np.argmax(total_y, axis=1)
+    skf = StratifiedShuffleSplit(n_splits=10, test_size=1000, random_state=seed)
+    idx_splits = []
+    for visable_idx, test_idx in skf.split(total_x,labels):
+        visable_x, test_x = total_x[visable_idx], total_x[test_idx]
+        visable_y, test_y = total_y[visable_idx], total_y[test_idx]
+        train_idx, stopping_idx = train_val_split(visable_idx,visable_y)
+        idx_splits.append({'train_idx':train_idx, 'val_idx': stopping_idx, 'test_idx':test_idx})
+
+    return idx_splits

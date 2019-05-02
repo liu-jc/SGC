@@ -6,7 +6,7 @@ import os
 from math import log
 from citation import train_regression
 from models import get_model
-from utils import sgc_precompute, load_citation, set_seed
+from utils import sgc_precompute, load_citation, set_seed, rw_restart_precompute
 from args import get_citation_args
 import torch
 from hyperopt import fmin, tpe, hp, STATUS_OK, Trials
@@ -21,7 +21,12 @@ set_seed(args.seed, args.cuda)
 space = {'weight_decay' : hp.loguniform('weight_decay', log(1e-10), log(1e-4))}
 
 adj, features, labels, idx_train, idx_val, idx_test = load_citation(args.dataset, args.normalization, args.cuda, gamma=args.gamma)
-if args.model == "SGC": features, precompute_time = sgc_precompute(features, adj, args.degree, args.concat)
+if args.model == "SGC":
+    if args.normalization != 'RWalkRestart':
+        features, precompute_time = sgc_precompute(features, adj, args.degree, args.concat)
+    else:
+        alpha = 0.05
+        features, precompute_time = rw_restart_precompute(features, adj, args.degree, alpha)
 
 def sgc_objective(space):
     model = get_model(args.model, features.size(1), labels.max().item()+1, args.hidden, args.dropout, args.cuda)

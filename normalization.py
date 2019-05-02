@@ -77,14 +77,13 @@ def low_pass(adj):
    return (sp.eye(adj.shape[0]) - 0.5*x).tocoo()
 
 def random_walk_restart(adj,gamma):
-    # adj = adj + sp.eye(adj.shape[0])
-    # adj = sp.coo_matrix(adj)
-    # row_sum = np.array(adj.sum(1))
-    # d_inv_sqrt = np.power(row_sum, -0.5).flatten()
-    # d_inv_sqrt[np.isinf(d_inv_sqrt)] = 0.
-    # d_mat_inv_sqrt = sp.diags(d_inv_sqrt)
-    # return (1-alpha)*d_mat_inv_sqrt.dot(adj).dot(d_mat_inv_sqrt).tocoo()
     return aug_normalized_adjacency(adj,gamma)
+
+def random_walk_restart_S(adj,gamma):
+    S = aug_normalized_adjacency(adj,gamma)
+    alpha = 0.2
+    S = (1-alpha) * S + alpha*sp.eye(adj.shape[0])
+    return S
 
 def fetch_normalization(type):
    switcher = {
@@ -99,7 +98,8 @@ def fetch_normalization(type):
        'NoNorm': no_norm, # A' = A
        'LowPass': low_pass, # A' = A
        # 'RWalkRestart': random_walk_restart, # S = (1-\alpha) * D^-1/2 * A + \alpha * H
-       'RWalkRestart': random_walk_restart,  # A' = (1-\alpha) * D^-1/2 * A * D^-1/2
+       'RWalkRestart': random_walk_restart,  # A' = D^-1/2 * A * D^-1/2
+       'RWalkRestartS': random_walk_restart_S,
    }
    func = switcher.get(type, lambda: "Invalid normalization technique.")
    return func
