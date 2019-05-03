@@ -4,7 +4,7 @@ import numpy as np
 import pickle as pkl
 import os
 from math import log
-from citation import train_regression
+from citation import train_regression, test_regression
 from models import get_model
 from utils import sgc_precompute, load_citation, set_seed, rw_restart_precompute
 from args import get_citation_args
@@ -37,6 +37,13 @@ def sgc_objective(space):
 
 best = fmin(sgc_objective, space=space, algo=tpe.suggest, max_evals=200)
 print("Best weight decay: {:.2e}".format(best["weight_decay"]))
+
+model = get_model(args.model, features.size(1), labels.max().item() + 1, args.hidden, args.dropout, args.cuda)
+model, acc_val, _ = train_regression(model, features[idx_train], labels[idx_train], features[idx_val], labels[idx_val],
+                                     args.epochs, best['weight_decay'], args.lr, args.dropout)
+acc_test = test_regression(model, features[idx_test], labels[idx_test])
+
+print("Validation Accuracy: {:.4f} Test Accuracy: {:.4f}".format(acc_val, acc_test))
 
 os.makedirs("./{}-tuning".format(args.model), exist_ok=True)
 path = '{}-tuning/{}.txt'.format(args.model, args.dataset)

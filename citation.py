@@ -16,7 +16,8 @@ args = get_citation_args()
 
 if args.tuned:
     if args.model == "SGC":
-        with open("{}-tuning/{}.txt".format(args.model, args.dataset), 'rb') as f:
+        # with open("{}-tuning/{}.txt".format(args.model, args.dataset), 'rb') as f:
+        with open("{}-tuning/{}-{}.txt".format(args.model, args.normalization, args.dataset), 'rb') as f:
             args.weight_decay = pkl.load(f)['weight_decay']
             print("using tuned weight decay: {}".format(args.weight_decay))
     else:
@@ -26,14 +27,13 @@ else:
 
 # setting random seeds
 set_seed(args.seed, args.cuda)
-
-adj, features, labels, idx_train, idx_val, idx_test = load_citation(args.dataset, args.normalization, args.cuda, gamma=args.gamma)
-
+alpha = 0.2
+adj, features, labels, idx_train, idx_val, idx_test = load_citation(args.dataset, args.normalization, args.cuda, gamma=args.gamma, alpha=alpha)
 if args.model == "SGC":
     if args.normalization != 'RWalkRestart':
         features, precompute_time = sgc_precompute(features, adj, args.degree, args.concat)
     else:
-        alpha = 0.2
+        alpha = 0.05
         features, precompute_time = rw_restart_precompute(features, adj, args.degree, alpha)
     print("{:.4f}s".format(precompute_time))
 

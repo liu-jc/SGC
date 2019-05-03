@@ -79,9 +79,9 @@ def low_pass(adj):
 def random_walk_restart(adj,gamma):
     return aug_normalized_adjacency(adj,gamma)
 
-def random_walk_restart_S(adj,gamma):
+def random_walk_restart_S(adj,gamma,alpha):
     S = aug_normalized_adjacency(adj,gamma)
-    alpha = 0.2
+    # alpha = 0.2
     S = (1-alpha) * S + alpha*sp.eye(adj.shape[0])
     return S
 

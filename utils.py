@@ -15,10 +15,12 @@ def parse_index_file(filename):
         index.append(int(line.strip()))
     return index
 
-def preprocess_citation(adj, features, normalization="FirstOrderGCN", gamma=1):
+def preprocess_citation(adj, features, normalization="FirstOrderGCN", gamma=1, alpha=0.2):
     adj_normalizer = fetch_normalization(normalization)
     if 'Aug' in normalization:
         adj = adj_normalizer(adj, gamma=gamma)
+    elif 'RestartS' in normalization:
+        adj = adj_normalizer(adj, gamma=gamma, alpha=alpha)
     elif 'Restart' in normalization:
         adj = adj_normalizer(adj, gamma=gamma)
     else:
@@ -35,7 +37,7 @@ def sparse_mx_to_torch_sparse_tensor(sparse_mx):
     shape = torch.Size(sparse_mx.shape)
     return torch.sparse.FloatTensor(indices, values, shape)
 
-def load_citation(dataset_str="cora", normalization="FirstOrderGCN", cuda=True, gamma=1):
+def load_citation(dataset_str="cora", normalization="FirstOrderGCN", cuda=True, gamma=1, alpha=0.2):
     """
     Load Citation Networks Datasets.
     """
@@ -74,7 +76,7 @@ def load_citation(dataset_str="cora", normalization="FirstOrderGCN", cuda=True, 
     idx_train = range(len(y))
     idx_val = range(len(y), len(y)+500)
 
-    adj, features = preprocess_citation(adj, features, normalization, gamma=gamma)
+    adj, features = preprocess_citation(adj, features, normalization, gamma=gamma, alpha=alpha)
 
     # porting to pytorch
     features = torch.FloatTensor(np.array(features.todense())).float()
