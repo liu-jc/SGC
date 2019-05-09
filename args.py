@@ -39,6 +39,10 @@ def get_citation_args():
                         help='feature-type')
     parser.add_argument('--concat', action='store_true', help='concat features')
     parser.add_argument('--tuned', action='store_true', help='use tuned hyperparams')
+    parser.add_argument('--multi_scale', action='store_true', \
+                        help='use multi-scale alpha for random walk with restart. Only for some normalizations')
+    parser.add_argument('--multiply_degree', action='store_true', \
+                        help='multiply the degrees of nodes with their feature vectors')
 
     args, _ = parser.parse_known_args()
     args.cuda = not args.no_cuda and torch.cuda.is_available()
