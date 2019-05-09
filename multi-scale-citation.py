@@ -29,7 +29,7 @@ if args.model == "SGC":
             concat_feats = []
             all_pre_time = 0
             for alpha in alpha_list:
-                features, precompute_time = rw_restart_precompute(features, adj, args.degree, alpha)
+                features, precompute_time = rw_restart_precompute(features, adj, args.degree, alpha, args.concat)
                 concat_feats.append(features)
                 all_pre_time += precompute_time
             features = torch.cat(concat_feats,dim=1)
@@ -44,7 +44,7 @@ if args.model == "SGC":
                 features = torch.mul(features,row_sum)
         else:
             alpha = 0.05
-            features, precompute_time = rw_restart_precompute(features, adj, args.degree, alpha)
+            features, precompute_time = rw_restart_precompute(features, adj, args.degree, alpha, args.concat)
             if args.multiply_degree:
                 row_sum = torch.sparse.sum(adj, dim=1).to_dense()
                 row_sum = row_sum.reshape(row_sum.shape[0], -1)
