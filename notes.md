@@ -4,7 +4,7 @@
 
 2. After getting the feature vectors, multiply the feature vectors with their degree. (It may be done in matrix form) (Worse results)
 
-## Degree results
+## Degree results (alpha = 0.05)
 1. cora 0.8141(degree 20, RWalk), 0.8075(degree 5, AugNorm)
 2. citeseer 0.6861(degree 32, RWalk), 0.6803(degree 8, AugNorm)
 3. pubmed 0.7813(degree 30, RWalk),0.7724 (degree 6, AugNorm)
@@ -23,3 +23,11 @@
 1. check if any features of nodes are very small during the propagation, if so, try to fix them (or do not go to these nodes)
 2. change the scale, try to not use inverse. If you inverse the matrix, after a few iteration, it will become very small. Can we use another way? 
 3. check renchi 
+
+## 05/11~05/17
+1. Neighbors sampling with Top PPR (may consider different scale, top10, top20 combined) (DONE)
+2. Learnable alpha, like attention. (Read Graph Attention Network). Use attention within PPR propagation. 
+3. Draw a figure with different alpha and different degree (DONE) 
+4. check k_fold_tuning (DONE) 
+5. Graph Attention Network Paper Reading 
+6. Neighbors sampling with TOP PPR in reddit

@@ -15,8 +15,9 @@ from time import perf_counter
 args = get_citation_args()
 
 # setting random seeds
+print(args)
 set_seed(args.seed, args.cuda)
-alpha = 0.2
+alpha = 0.05
 adj, features, labels, idx_train, idx_val, idx_test = load_citation(args.dataset, args.normalization, args.cuda, gamma=args.gamma, alpha=alpha)
 # if normalization is not RWalkRestartS, the param alpha is useless in load_citation function.
 

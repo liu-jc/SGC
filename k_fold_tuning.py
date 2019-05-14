@@ -42,18 +42,18 @@ if args.model == "SGC" and args.normalization == "RWalkRestart":
     results = []
     for alpha in alpha_space:
         print("alpha is {}".format(alpha))
-        features, precompute_time = rw_restart_precompute(features, adj, args.degree, alpha)
+        cur_features, precompute_time = rw_restart_precompute(features, adj, args.degree, alpha)
         best = fmin(sgc_objective, space=space, algo=tpe.suggest, max_evals=200)
         print("alpha: {}, best: {}".format(alpha, best))
 
         model = get_model(args.model, features.size(1), labels.max().item() + 1, args.hidden, args.dropout, args.cuda)
-        model, acc_val, train_time = train_regression(model, features[idx_train], labels[idx_train],
-                                                      features[idx_val], labels[idx_val],
+        model, acc_val, train_time = train_regression(model, cur_features[idx_train], labels[idx_train],
+                                                      cur_features[idx_val], labels[idx_val],
                                                       args.epochs, best["weight_decay"], args.lr, args.dropout)
 
         acc_test_list = []
         for idxs in idx_splits:
-            acc_test_list.append(test_regression(model, features[idx_test], labels[idx_test]))
+            acc_test_list.append(test_regression(model, cur_features[idx_test], labels[idx_test]))
 
         print("Test Accuracy: {:.4f}".format(np.average(acc_test_list)))
         results.append({'alpha':alpha, 'weight_decay':best['weight_decay'], 'test_acc':np.average(acc_test_list)})
@@ -73,18 +73,18 @@ elif args.model == "SGC" and args.normalization == "RWalkRestartS":
         idx_splits = test_split(args.dataset)
         idx_splits.append({'train_idx': idx_train, 'val_idx': idx_val, 'test_idx': idx_test})
 
-        features, precompute_time = sgc_precompute(features, adj, args.degree, args.concat)
+        cur_features, precompute_time = sgc_precompute(features, adj, args.degree, args.concat)
         best = fmin(sgc_objective, space=space, algo=tpe.suggest, max_evals=200)
         print("alpha: {}, best: {}".format(alpha, best))
 
         model = get_model(args.model, features.size(1), labels.max().item() + 1, args.hidden, args.dropout, args.cuda)
-        model, acc_val, train_time = train_regression(model, features[idx_train], labels[idx_train],
-                                                      features[idx_val], labels[idx_val],
+        model, acc_val, train_time = train_regression(model, cur_features[idx_train], labels[idx_train],
+                                                      cur_features[idx_val], labels[idx_val],
                                                       args.epochs, best["weight_decay"], args.lr, args.dropout)
 
         acc_test_list = []
         for idxs in idx_splits:
-            acc_test_list.append(test_regression(model, features[idx_test], labels[idx_test]))
+            acc_test_list.append(test_regression(model, cur_features[idx_test], labels[idx_test]))
 
         print("Test Accuracy: {:.4f}".format(np.average(acc_test_list)))
         results.append({'alpha':alpha, 'weight_decay':best['weight_decay'], 'test_acc':np.average(acc_test_list)})
@@ -95,18 +95,18 @@ elif args.model == "SGC" and args.normalization == "RWalkRestartS":
     with open('./results/{}-{}-{}.pkl'.format(args.dataset, args.model, args.normalization),'wb') as f:
         pkl.dump(results,f)
 elif args.model == "SGC":
-    features, precompute_time = sgc_precompute(features, adj, args.degree, args.concat)
+    cur_features, precompute_time = sgc_precompute(features, adj, args.degree, args.concat)
     best = fmin(sgc_objective, space=space, algo=tpe.suggest, max_evals=200)
     print("best: ", best)
     ## test
     model = get_model(args.model, features.size(1), labels.max().item() + 1, args.hidden, args.dropout, args.cuda)
-    model, acc_val, train_time = train_regression(model, features[idx_train], labels[idx_train],
-                                                  features[idx_val], labels[idx_val],
+    model, acc_val, train_time = train_regression(model, cur_features[idx_train], labels[idx_train],
+                                                  cur_features[idx_val], labels[idx_val],
                                                   args.epochs, best["weight_decay"], args.lr, args.dropout)
 
     acc_test_list = []
     for idxs in idx_splits:
-        acc_test_list.append(test_regression(model, features[idx_test], labels[idx_test]))
+        acc_test_list.append(test_regression(model, cur_features[idx_test], labels[idx_test]))
 
     print("Test Accuracy: {:.4f}".format(np.average(acc_test_list)))
     result = {'weight_decay': best['weight_decay'], 'test_acc': np.average(acc_test_list)}
