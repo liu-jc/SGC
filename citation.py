@@ -41,10 +41,13 @@ def train_regression(model,
     optimizer = optim.Adam(model.parameters(), lr=lr,
                            weight_decay=weight_decay)
     t = perf_counter()
+    forward_time = 0
     for epoch in range(epochs):
         model.train()
         optimizer.zero_grad()
+        forward = perf_counter()
         output = model(train_features)
+        forward_time += perf_counter() - forward
         loss_train = F.cross_entropy(output, train_labels)
         loss_train.backward()
         optimizer.step()
@@ -55,16 +58,18 @@ def train_regression(model,
         output = model(val_features)
         acc_val = accuracy(output, val_labels)
 
-    return model, acc_val, train_time
+    return model, acc_val, train_time, forward_time
 
 def test_regression(model, test_features, test_labels):
     model.eval()
     return accuracy(model(test_features), test_labels)
 
 if args.model == "SGC":
-    model, acc_val, train_time = train_regression(model, features[idx_train], labels[idx_train], features[idx_val], labels[idx_val],
+    model, acc_val, train_time, forward_time = train_regression(model, features[idx_train], labels[idx_train], features[idx_val], labels[idx_val],
                      args.epochs, args.weight_decay, args.lr, args.dropout)
     acc_test = test_regression(model, features[idx_test], labels[idx_test])
 
 print("Validation Accuracy: {:.4f} Test Accuracy: {:.4f}".format(acc_val, acc_test))
 print("Pre-compute time: {:.4f}s, train time: {:.4f}s, total: {:.4f}s".format(precompute_time, train_time, precompute_time+train_time))
+print("------Training time Details-------")
+print("Forward time: {:.4f}s".format(forward_time))
