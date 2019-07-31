@@ -10,6 +10,7 @@ from metrics import accuracy
 import pickle as pkl
 from args import get_citation_args
 from time import perf_counter
+import os
 
 # Arguments
 args = get_citation_args()
@@ -102,6 +103,20 @@ if args.model == "SGC":
 def print_time_ratio(name, time1, train_time):
     print("{}: {:.4f}s, ratio: {}".format(name, time1, time1/train_time))
 
+def save_time_result(file_name, *args):
+    # args is the names of the time
+    save_dict = {}
+    save_list = []
+    for arg in args:
+        save_list.append(arg)
+
+    for x in save_list:
+        save_dict[x] = eval(x)
+    # print(save_dict)
+    import pickle
+    with open(file_name, 'wb') as  f:
+        pickle.dump(save_dict, f)
+
 print("Validation Accuracy: {:.4f} Test Accuracy: {:.4f}".format(acc_val, acc_test))
 print("Pre-compute time: {:.4f}s, train time: {:.4f}s, total: {:.4f}s".format(precompute_time, train_time, precompute_time+train_time))
 
@@ -117,4 +132,8 @@ print("--Cross Entropy Time Details--")
 print_time_ratio('Softmax_log Time', softmax_time, train_time)
 print_time_ratio('NLL Time', nll_time, train_time)
 print_time_ratio('Backward Time', backward_time, train_time)
-print_time_ratio('Step Time', backward_time, train_time)
+print_time_ratio('Step Time', step_time, train_time)
+
+file_name = os.path.join('time_result', args.dataset)
+save_time_result(file_name, 'precompute_time', 'train_time', 'forward_time', 'cross_entropy_time', 'softmax_time', 'nll_time',
+                 'backward_time', 'step_time')
