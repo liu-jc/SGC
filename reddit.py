@@ -35,12 +35,14 @@ args.cuda = not args.no_cuda and torch.cuda.is_available()
 
 set_seed(args.seed, args.cuda)
 
-adj, train_adj, features, labels, idx_train, idx_val, idx_test = load_reddit_data(args.normalization)
+adj, train_adj, features, labels, idx_train, idx_val, idx_test = load_reddit_data(args.normalization, cuda=args.cuda)
 print("Finished data loading.")
 
 model = SGC(features.size(1), labels.max().item()+1)
 if args.cuda: model.cuda()
+
 processed_features, precompute_time = sgc_precompute(features, adj, args.degree)
+
 if args.inductive:
     train_features, _ = sgc_precompute(features[idx_train], train_adj, args.degree)
 else:
@@ -48,27 +50,100 @@ else:
 
 test_features = processed_features[idx_test if args.test else idx_val]
 
-def train_regression(model, train_features, train_labels, epochs):
-    optimizer = optim.LBFGS(model.parameters(), lr=1)
+def train_regression(model, train_features, train_labels, epochs, optimizer='Adam'):
+    # optimizer = optim.LBFGS(model.parameters(), lr=1)
+    if optimizer != 'Adam':
+        optimizer = optim.LBFGS(model.parameters(), lr=1)
+        def closure():
+            optimizer.zero_grad()
+            output = model(train_features)
+            loss_train = F.cross_entropy(output, train_labels)
+            loss_train.backward()
+            return loss_train
+
+        t = perf_counter()
+        for epoch in range(epochs):
+            loss_train = optimizer.step(closure)
+
+        train_time = perf_counter() - t
+        return model, train_time
+
+    optimizer = optim.Adam(model.parameters(), lr=0.1,
+                               weight_decay=5e-6)
     model.train()
-    def closure():
-        optimizer.zero_grad()
-        output = model(train_features)
-        loss_train = F.cross_entropy(output, train_labels)
-        loss_train.backward()
-        return loss_train
+    forward_time = 0
+    cross_entropy_time = 0
+    backward_time = 0
+    step_time = 0
+    softmax_time = 0
+    nll_time = 0
     t = perf_counter()
     for epoch in range(epochs):
-        loss_train = optimizer.step(closure)
+        model.train()
+        optimizer.zero_grad()
+
+        # forward time
+        t_forward = perf_counter()
+        output = model(train_features)
+        forward_time += perf_counter() - t_forward
+
+        # Cross Entropy time
+        t_CE = perf_counter()
+        # loss_train = F.cross_entropy(output, train_labels)
+
+        t_softmax_log = perf_counter()
+        softmax_log = F.log_softmax(output,dim=1)
+        softmax_time += perf_counter() - t_softmax_log
+
+        t_nll = perf_counter()
+        loss_train = F.nll_loss(softmax_log, train_labels)
+        nll_time += perf_counter() - t_nll
+
+        cross_entropy_time += perf_counter() - t_CE
+
+        # Backward time
+        t_backward = perf_counter()
+        loss_train.backward()
+        backward_time += perf_counter() - t_backward
+
+        # Step time
+        t_step = perf_counter()
+        optimizer.step()
+        step_time += perf_counter() - t_step
+
     train_time = perf_counter()-t
-    return model, train_time
+    return model, train_time, forward_time, cross_entropy_time, backward_time, step_time, softmax_time, nll_time
 
 def test_regression(model, test_features, test_labels):
     model.eval()
     return f1(model(test_features), test_labels)
 
-model, train_time = train_regression(model, train_features, labels[idx_train], args.epochs)
+def print_time_ratio(name, time1, train_time):
+    print("{}: {:.4f}s, ratio: {}".format(name, time1, time1/train_time))
+
+optimizer = 'Adam'
+
+if optimizer == 'Adam':
+    model, train_time, forward_time, cross_entropy_time, backward_time, step_time, \
+                softmax_time, nll_time = train_regression(model, train_features, labels[idx_train], args.epochs, optimizer=optimizer)
+
+else:
+    model, train_time =  train_regression(model, train_features, labels[idx_train], args.epochs, optimizer=optimizer)
+
+
 test_f1, _ = test_regression(model, test_features, labels[idx_test if args.test else idx_val])
+total_time = train_time + precompute_time
+print("Pre-compute time: {:.4f}s, train time: {:.4f}s, total: {:.4f}s".format(precompute_time, train_time,
+                                                                                  total_time))
 print("Total Time: {:.4f}s, {} F1: {:.4f}".format(train_time+precompute_time,
-                                                  "Test" if args.test else "Val",
-                                                  test_f1))
+                                                    "Test" if args.test else "Val",
+                                                    test_f1))
+
+if optimizer == 'Adam':
+    print_time_ratio('Forward Time', forward_time, train_time)
+    print_time_ratio('Cross Entropy Time', cross_entropy_time, train_time)
+    print("--Cross Entropy Time Details--")
+    print_time_ratio('Softmax_log Time', softmax_time, train_time)
+    print_time_ratio('NLL Time', nll_time, train_time)
+    print_time_ratio('Backward Time', backward_time, train_time)
+    print_time_ratio('Step Time', step_time, train_time)
