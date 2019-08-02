@@ -114,12 +114,14 @@ def save_time_result(file_name, *args):
         save_dict[x] = eval(x)
     # print(save_dict)
     import pickle
-    with open(file_name, 'wb') as  f:
+    with open(file_name, 'wb') as f:
         pickle.dump(save_dict, f)
 
+
+total_time = precompute_time + train_time
 print("Validation Accuracy: {:.4f} Test Accuracy: {:.4f}".format(acc_val, acc_test))
 print("Pre-compute time: {:.4f}s, train time: {:.4f}s, total: {:.4f}s".format(precompute_time, train_time,
-                                                                              precompute_time+train_time))
+                                                                              total_time))
 
 print("------Training time Details-------")
 print("Total Training Time: {:.4f}s".format(train_time))
@@ -136,5 +138,5 @@ print_time_ratio('Backward Time', backward_time, train_time)
 print_time_ratio('Step Time', step_time, train_time)
 
 file_name = os.path.join('time_result', args.dataset)
-save_time_result(file_name, 'precompute_time', 'train_time', 'forward_time', 'cross_entropy_time', 'softmax_time',
+save_time_result(file_name, 'total_time', 'precompute_time', 'train_time', 'forward_time', 'cross_entropy_time', 'softmax_time',
                  'nll_time','backward_time', 'step_time')

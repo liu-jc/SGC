@@ -7,6 +7,7 @@ import torch.optim as optim
 from utils import load_reddit_data, sgc_precompute, set_seed
 from metrics import f1
 from models import SGC
+import os
 
 # Args
 parser = argparse.ArgumentParser()
@@ -29,6 +30,8 @@ parser.add_argument('--model', type=str, default="SGC",
                     help='model to use.')
 parser.add_argument('--degree', type=int, default=2,
                     help='degree of the approximation.')
+parser.add_argument('--optimizer', type=str, default='LBFGS',
+                    help='optimizer to use')
 
 args = parser.parse_args()
 args.cuda = not args.no_cuda and torch.cuda.is_available()
@@ -121,14 +124,27 @@ def test_regression(model, test_features, test_labels):
 def print_time_ratio(name, time1, train_time):
     print("{}: {:.4f}s, ratio: {}".format(name, time1, time1/train_time))
 
-optimizer = 'Adam'
+def save_time_result(file_name, *args):
+    # args is the names of the time
+    save_dict = {}
+    save_list = []
+    for arg in args:
+        save_list.append(arg)
 
-if optimizer == 'Adam':
+    for x in save_list:
+        save_dict[x] = eval(x)
+    # print(save_dict)
+    import pickle
+    with open(file_name, 'wb') as f:
+        pickle.dump(save_dict, f)
+
+
+if args.optimizer == 'Adam':
     model, train_time, forward_time, cross_entropy_time, backward_time, step_time, \
-                softmax_time, nll_time = train_regression(model, train_features, labels[idx_train], args.epochs, optimizer=optimizer)
+                softmax_time, nll_time = train_regression(model, train_features, labels[idx_train], args.epochs, optimizer=args.optimizer)
 
 else:
-    model, train_time =  train_regression(model, train_features, labels[idx_train], args.epochs, optimizer=optimizer)
+    model, train_time = train_regression(model, train_features, labels[idx_train], args.epochs, optimizer=args.optimizer)
 
 
 test_f1, _ = test_regression(model, test_features, labels[idx_test if args.test else idx_val])
@@ -139,7 +155,7 @@ print("Total Time: {:.4f}s, {} F1: {:.4f}".format(train_time+precompute_time,
                                                     "Test" if args.test else "Val",
                                                     test_f1))
 
-if optimizer == 'Adam':
+if args.optimizer == 'Adam':
     print_time_ratio('Forward Time', forward_time, train_time)
     print_time_ratio('Cross Entropy Time', cross_entropy_time, train_time)
     print("--Cross Entropy Time Details--")
@@ -147,3 +163,8 @@ if optimizer == 'Adam':
     print_time_ratio('NLL Time', nll_time, train_time)
     print_time_ratio('Backward Time', backward_time, train_time)
     print_time_ratio('Step Time', step_time, train_time)
+
+    file_name = os.path.join('time_result', 'reddit')
+    save_time_result(file_name, 'total_time', 'precompute_time', 'train_time', 'forward_time', 'cross_entropy_time',
+                     'softmax_time',
+                     'nll_time', 'backward_time', 'step_time')
