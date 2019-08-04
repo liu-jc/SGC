@@ -64,17 +64,20 @@ def train_linear(model, feat_dict, weight_decay, binary=False):
     for epoch in range(args.epochs):
         def closure():
             optimizer.zero_grad()
-            output = model(feat_dict["train"].cuda()).squeeze()
+            # output = model(feat_dict["train"].cuda()).squeeze()
+            output = model(feat_dict["train"]).squeeze()
             l2_reg = 0.5*weight_decay*(model.W.weight**2).sum()
-            loss = criterion(act(output), label_dict["train"].cuda())+l2_reg
+            # loss = criterion(act(output), label_dict["train"].cuda())+l2_reg
+            loss = criterion(act(output), label_dict["train"])+l2_reg
             loss.backward()
             return loss
 
         optimizer.step(closure)
 
     train_time = time.perf_counter()-start
-    val_res = eval_linear(model, feat_dict["val"].cuda(),
-                          label_dict["val"].cuda(), binary)
+    # val_res = eval_linear(model, feat_dict["val"].cuda(),
+    #                       label_dict["val"].cuda(), binary)
+    val_res = eval_linear(model, feat_dict["val"], label_dict["val"], binary)
     return val_res['accuracy'], model, train_time
 
 def eval_linear(model, features, label, binary=False):
@@ -115,8 +118,12 @@ if __name__ == '__main__':
                 nclass=nclass)
     if args.cuda: model.cuda()
     val_acc, best_model, train_time = train_linear(model, feat_dict, args.weight_decay, args.dataset=="mr")
-    test_res = eval_linear(best_model, feat_dict["test"].cuda(),
-                           label_dict["test"].cuda(), args.dataset=="mr")
-    train_res = eval_linear(best_model, feat_dict["train"].cuda(),
-                            label_dict["train"].cuda(), args.dataset=="mr")
+    # test_res = eval_linear(best_model, feat_dict["test"].cuda(),
+    #                        label_dict["test"].cuda(), args.dataset=="mr")
+    # train_res = eval_linear(best_model, feat_dict["train"].cuda(),
+    #                         label_dict["train"].cuda(), args.dataset=="mr")
+    test_res = eval_linear(best_model, feat_dict["test"],
+                           label_dict["test"], args.dataset=="mr")
+    train_res = eval_linear(best_model, feat_dict["train"],
+                            label_dict["train"], args.dataset=="mr")
     print("Total Time: {:2f}s, Train acc: {:.4f}, Val acc: {:.4f}, Test acc: {:.4f}".format(precompute_time+train_time, train_res["accuracy"], val_acc, test_res["accuracy"]))

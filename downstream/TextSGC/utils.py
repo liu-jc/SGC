@@ -132,7 +132,8 @@ def sgc_precompute(adj, features, degree, index_dict):
     assert degree==1, "Only supporting degree 2 now"
     feat_dict = {}
     start = perf_counter()
-    train_feats = features[:, index_dict["train"]].cuda()
+    # train_feats = features[:, index_dict["train"]].cuda()
+    train_feats = features[:, index_dict["train"]]
     train_feats = torch.spmm(adj, train_feats).t()
     train_feats_max, _ = train_feats.max(dim=0, keepdim=True)
     train_feats_min, _ = train_feats.min(dim=0, keepdim=True)
@@ -144,7 +145,8 @@ def sgc_precompute(adj, features, degree, index_dict):
     train_feats = (train_feats-train_feats_min)/train_feats_range
     feat_dict["train"] = train_feats
     for phase in ["test", "val"]:
-        feats = features[:, index_dict[phase]].cuda()
+        # feats = features[:, index_dict[phase]].cuda()
+        feats = features[:, index_dict[phase]]
         feats = torch.spmm(adj, feats).t()
         feats = feats[:, useful_features_dim]
         feat_dict[phase] = ((feats-train_feats_min)/train_feats_range).cpu() # adj is symmetric!
