@@ -166,3 +166,6 @@ def print_table(values, columns, epoch):
     else:
         table = table.split('\n')[2]
     print(table)
+
+def print_time_ratio(name, time1, train_time):
+    print("{}: {:.4f}s, ratio: {}".format(name, time1, time1/train_time))

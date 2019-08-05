@@ -28,6 +28,8 @@ parser.add_argument('--degree', type=int, default=2,
 parser.add_argument('--tuned', action='store_true', help='use tuned hyperparams')
 parser.add_argument('--preprocessed', action='store_true',
                     help='use preprocessed data')
+parser.add_argument('--optimizer', type=str, default='LBFGS', help='optimizer')
+
 args = parser.parse_args()
 args.cuda = not args.no_cuda and torch.cuda.is_available()
 args.device = 'cuda' if args.cuda else 'cpu'
@@ -56,29 +58,73 @@ def train_linear(model, feat_dict, weight_decay, binary=False):
     else:
         act = torch.sigmoid
         criterion = F.binary_cross_entropy
-    optimizer = optim.LBFGS(model.parameters())
+    if args.optimizer == 'LBFGS':
+        optimizer = optim.LBFGS(model.parameters())
+    else:
+        optimizer = optim.Adam(model.parameters(), lr=0.1,
+                               weight_decay=5e-6)
+
     best_val_loss = float('inf')
     best_val_acc = 0
     plateau = 0
-    start = time.perf_counter()
-    for epoch in range(args.epochs):
-        def closure():
-            optimizer.zero_grad()
-            # output = model(feat_dict["train"].cuda()).squeeze()
-            output = model(feat_dict["train"]).squeeze()
-            l2_reg = 0.5*weight_decay*(model.W.weight**2).sum()
-            # loss = criterion(act(output), label_dict["train"].cuda())+l2_reg
-            loss = criterion(act(output), label_dict["train"])+l2_reg
-            loss.backward()
-            return loss
 
-        optimizer.step(closure)
+    forward_time = 0
+    cross_entropy_time = 0
+    backward_time = 0
+    step_time = 0
+    softmax_time = 0
+    nll_time = 0
+
+    start = time.perf_counter()
+    if args.optimizer == 'LBFGS':
+        for epoch in range(args.epochs):
+            def closure():
+                optimizer.zero_grad()
+                # output = model(feat_dict["train"].cuda()).squeeze()
+                output = model(feat_dict["train"]).squeeze()
+                l2_reg = 0.5*weight_decay*(model.W.weight**2).sum()
+                # loss = criterion(act(output), label_dict["train"].cuda())+l2_reg
+                loss = criterion(act(output), label_dict["train"])+l2_reg
+                loss.backward()
+                return loss
+
+            optimizer.step(closure)
+    else:
+        for epoch in range(args.epochs):
+            model.train()
+            optimizer.zero_grad()
+
+            t_forward = perf_counter()
+            output = model(feat_dict["train"]).squeeze()
+            forward_time += perf_counter() - t_forward
+
+            t_cross_entropy = perf_counter()
+            l2_reg = 0.5 * weight_decay * (model.W.weight ** 2).sum()
+            t_softmax = perf_counter()
+            softmax_log = act(output)
+            softmax_time += perf_counter() - t_softmax
+
+            t_nll = perf_counter()
+            loss = criterion(softmax_log, label_dict["train"])+l2_reg
+            nll_time += perf_counter() - t_nll
+            cross_entropy_time += perf_counter() - t_cross_entropy
+
+            t_backward = perf_counter()
+            loss.backward()
+            backward_time += perf_counter() - t_backward
+
+            t_step = perf_counter()
+            optimizer.step()
+            step_time += perf_counter() - t_step
 
     train_time = time.perf_counter()-start
     # val_res = eval_linear(model, feat_dict["val"].cuda(),
     #                       label_dict["val"].cuda(), binary)
     val_res = eval_linear(model, feat_dict["val"], label_dict["val"], binary)
-    return val_res['accuracy'], model, train_time
+    if args.optimizer == 'LBFGS':
+        return val_res['accuracy'], model, train_time
+    else:
+        return val_res['accuracy'], model, train_time, forward_time, cross_entropy_time, backward_time, step_time, softmax_time, nll_time
 
 def eval_linear(model, features, label, binary=False):
     model.eval()
@@ -117,7 +163,12 @@ if __name__ == '__main__':
     model = SGC(nfeat=feat_dict["train"].size(1),
                 nclass=nclass)
     if args.cuda: model.cuda()
-    val_acc, best_model, train_time = train_linear(model, feat_dict, args.weight_decay, args.dataset=="mr")
+
+    if args.optimizer == 'LBFGS':
+        val_acc, best_model, train_time = train_linear(model, feat_dict, args.weight_decay, args.dataset=="mr")
+    else:
+        val_acc, best_model, train_time, forward_time, cross_entropy_time, backward_time, \
+            step_time, softmax_time, nll_time = train_linear(model, feat_dict, args.weight_decay, args.dataset=="mr")
     # test_res = eval_linear(best_model, feat_dict["test"].cuda(),
     #                        label_dict["test"].cuda(), args.dataset=="mr")
     # train_res = eval_linear(best_model, feat_dict["train"].cuda(),
@@ -128,3 +179,39 @@ if __name__ == '__main__':
                             label_dict["train"], args.dataset=="mr")
     print("Total Time: {:2f}s, Train acc: {:.4f}, Val acc: {:.4f}, Test acc: {:.4f}".format(precompute_time+train_time, train_res["accuracy"], val_acc, test_res["accuracy"]))
     print("Precompute Time: {:2f}s, Train Time: {:2f}s".format(precompute_time, train_time))
+
+    total_time = precompute_time + train_time
+
+    if args.optimizer != 'LBFGS':
+        print_time_ratio('Forward Time', forward_time, train_time)
+        print_time_ratio('Cross Entropy Time', cross_entropy_time, train_time)
+        print("--Cross Entropy Time Details--")
+        print_time_ratio('Softmax_log Time', softmax_time, train_time)
+        print_time_ratio('NLL Time', nll_time, train_time)
+        print_time_ratio('Backward Time', backward_time, train_time)
+        print_time_ratio('Step Time', step_time, train_time)
+
+        file_name = os.path.join('time_result', args.dataset)
+        def save_time_result(file_name, *args):
+            # args is the names of the time
+            save_dict = {}
+            save_list = []
+            for arg in args:
+                save_list.append(arg)
+
+            for x in save_list:
+                save_dict[x] = eval(x)
+            # print(save_dict)
+            import pickle
+            with open(file_name, 'wb') as f:
+                pickle.dump(save_dict, f)
+
+        save_time_result(file_name, 'total_time', 'precompute_time', 'train_time', 'forward_time', 'cross_entropy_time',
+                         'softmax_time',
+                         'nll_time', 'backward_time', 'step_time')
+
+        #
+        # file_name = os.path.join('time_result', 'reddit')
+        # save_time_result(file_name, 'total_time', 'precompute_time', 'train_time', 'forward_time', 'cross_entropy_time',
+        #                  'softmax_time',
+        #                  'nll_time', 'backward_time', 'step_time')

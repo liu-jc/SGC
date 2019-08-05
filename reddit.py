@@ -42,6 +42,9 @@ adj, train_adj, features, labels, idx_train, idx_val, idx_test = load_reddit_dat
 print("Finished data loading.")
 
 model = SGC(features.size(1), labels.max().item()+1)
+
+print("# Feature: {}, # Classes: {}".format(features.size(1), labels.max().item()+1))
+
 if args.cuda: model.cuda()
 
 processed_features, precompute_time = sgc_precompute(features, adj, args.degree)
