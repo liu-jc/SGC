@@ -111,7 +111,7 @@ if __name__ == '__main__':
         # load the relased degree 2 features
         with open(os.path.join("preprocessed",
             "{}.pkl".format(args.dataset)), "rb") as prep:
-            feat_dict =  pkl.load(prep)
+            feat_dict = pkl.load(prep)
         precompute_time = 0
 
     model = SGC(nfeat=feat_dict["train"].size(1),
@@ -127,3 +127,4 @@ if __name__ == '__main__':
     train_res = eval_linear(best_model, feat_dict["train"],
                             label_dict["train"], args.dataset=="mr")
     print("Total Time: {:2f}s, Train acc: {:.4f}, Val acc: {:.4f}, Test acc: {:.4f}".format(precompute_time+train_time, train_res["accuracy"], val_acc, test_res["accuracy"]))
+    print("Precompute Time: {:2f}s, Train Time: {:2f}s".format(precompute_time, train_time))
